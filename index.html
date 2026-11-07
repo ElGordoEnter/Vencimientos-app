@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Control de vencimientos</title>
+<style>
+:root{
+  --bg:#eef3f6;--surface:#fff;--ink:#14212b;--muted:#5a6b78;--line:#d3dde4;--accent:#0f5c7a;--accent-ink:#fff;
+  --bad:#b42318;--bad-bg:#fde8e6;--warn:#8a5a00;--warn-bg:#fff1d1;--ok:#17653a;--ok-bg:#dcf3e4;
+  color-scheme:light;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e171d;--surface:#16232c;--ink:#e6eef3;--muted:#93a6b3;--line:#2a3b47;--accent:#5bb8d9;--accent-ink:#06222e;
+  --bad:#ff9a8f;--bad-bg:#3a1b19;--warn:#ffcf70;--warn-bg:#3a2b0a;--ok:#7fdca1;--ok-bg:#12301f;color-scheme:dark;}}
+:root[data-theme="dark"]{--bg:#0e171d;--surface:#16232c;--ink:#e6eef3;--muted:#93a6b3;--line:#2a3b47;--accent:#5bb8d9;--accent-ink:#06222e;
+  --bad:#ff9a8f;--bad-bg:#3a1b19;--warn:#ffcf70;--warn-bg:#3a2b0a;--ok:#7fdca1;--ok-bg:#12301f;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:920px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:clamp(1.6rem,4vw,2.2rem);font-weight:800;margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+form{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end}
+.full{grid-column:1/-1}
+@media (max-width:400px){form{grid-template-columns:1fr}}
+label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:.9rem}
+input,select{font:inherit;width:100%;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-height:44px}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button{font:inherit;font-weight:600;cursor:pointer;border-radius:6px;min-height:44px;padding:0 16px}
+.add{background:var(--accent);color:var(--accent-ink);border:0}
+.err{color:var(--bad);font-size:.9rem;min-height:1.3em;margin:8px 0 0}
+.summary{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 12px}
+.chip{padding:6px 14px;border-radius:999px;font-weight:600;font-size:.9rem;border:2px solid transparent;cursor:pointer}
+.chip.on{border-color:currentColor}
+.chip.all{background:transparent;color:var(--accent);border-color:var(--accent)}
+.c-bad{background:var(--bad-bg);color:var(--bad)}.c-warn{background:var(--warn-bg);color:var(--warn)}.c-ok{background:var(--ok-bg);color:var(--ok)}
+.wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:840px}
+.hm{display:flex;gap:8px}.hm select{flex:1;min-width:0}
+.acts{display:flex;gap:6px}
+dialog{width:min(520px,92vw);padding:20px;border:1px solid var(--line);border-top:6px solid var(--accent);border-radius:10px;background:var(--surface);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+dialog h2{margin:0 0 4px;font-size:1.3rem}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media (max-width:400px){.g{grid-template-columns:1fr}}
+.dact{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+#cdlg{border-top-color:var(--bad)}
+.danger{background:var(--bad);color:var(--surface);border:0}
+th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line)}
+th{font-size:.85rem;color:var(--muted);font-weight:600}
+tr:last-child td{border-bottom:0}
+.st{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.85rem;font-weight:600;white-space:nowrap}
+.del{background:transparent;border:1px solid var(--line);color:var(--ink);min-height:36px;padding:0 12px}
+.empty{padding:28px 12px;text-align:center;color:var(--muted)}
+.search{margin-top:20px}
+.th{background:transparent;border:0;padding:0;min-height:36px;font:inherit;font-weight:600;color:inherit;cursor:pointer}
+.th.on{color:var(--accent)}
+.note{color:var(--muted);font-size:.85rem;margin-top:16px}
+[hidden]{display:none!important}
+.userbar{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px;color:var(--muted);font-size:.9rem}
+.login p{margin:0 0 12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Control de vencimientos</h1>
+  <p class="sub">Cargá cada producto con su fecha y quién la registró.</p>
+
+  <div class="userbar" id="ub" hidden><span id="who"></span><button type="button" class="del" id="gout">Cerrar sesión</button></div>
+  <div class="card login" id="auth">
+    <p>Para ver y cargar productos, iniciá sesión con tu cuenta de Google. Solo pueden entrar las cuentas autorizadas.</p>
+    <button class="add" id="gin" type="button">Iniciar sesión con Google</button>
+    <p class="err" id="ae" role="alert"></p>
+  </div>
+  <div id="app" hidden>
+  <div class="card">
+    <form id="f" novalidate>
+      <label>Producto<input id="p" list="pl" autocomplete="off" required placeholder="Ej: Yogur natural"></label>
+      <label>Lote<input id="l" autocomplete="off" required placeholder="Ej: L2411-A"></label>
+      <label>Fecha<input id="d" type="date" required></label>
+      <label>Hora<div class="hm"><select id="h" aria-label="Hora"></select><select id="m" aria-label="Minutos"></select></div></label>
+      <label class="full">Firma<input id="n" autocomplete="name" required placeholder="Nombre y apellido"></label>
+      <button class="add full" type="submit">Agregar producto</button>
+    </form>
+    <datalist id="pl"></datalist>
+    <p class="err" id="e" role="alert"></p>
+  </div>
+
+  <label class="search">Buscar producto<input id="q" type="search" autocomplete="off" placeholder="Escribí el nombre del producto"></label>
+
+  <div class="summary" id="s"></div>
+
+  <div class="card wrap">
+    <table>
+      <thead><tr><th>Producto</th><th>Lote</th><th>Estado</th><th>Vence</th><th><button type="button" class="th" id="sf" aria-pressed="false">Firma</button></th><th></th></tr></thead>
+      <tbody id="t"></tbody>
+    </table>
+  </div>
+  <p class="note" id="note">Lista compartida entre las personas autorizadas. “Por vencer” significa que faltan 15 días o menos.</p>
+  </div>
+</main>
+
+<dialog id="dlg" aria-labelledby="dt">
+  <h2 id="dt">Editando un producto</h2>
+  <p class="sub">Estás en la ventana de edición. Si cerrás sin guardar, no cambia nada.</p>
+  <div class="g">
+    <label>Producto<input id="ep" list="pl" autocomplete="off"></label>
+    <label>Lote<input id="el" autocomplete="off"></label>
+    <label>Fecha<input id="ed" type="date"></label>
+    <label>Hora<div class="hm"><select id="eh" aria-label="Hora"></select><select id="em" aria-label="Minutos"></select></div></label>
+    <label style="grid-column:1/-1">Firma<input id="en" autocomplete="name"></label>
+  </div>
+  <p class="err" id="ee" role="alert"></p>
+  <div class="dact"><button type="button" class="del" id="ec">Cancelar</button><button type="button" class="add" id="es">Guardar cambios</button></div>
+</dialog>
+
+<dialog id="cdlg" aria-labelledby="ct">
+  <h2 id="ct">¿Eliminar este producto?</h2>
+  <p>Vas a eliminar el producto <strong id="cn"></strong> (lote <strong id="cl"></strong>). Esta acción no se puede deshacer.</p>
+  <div class="dact"><button type="button" class="del" id="cc">Cancelar</button><button type="button" class="danger" id="cx">Sí, eliminar</button></div>
+</dialog>
+
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+(function(){
+  var KEY="vencimientos-v1", items=[], col=null, filter="", sortBy="";
+  function fail(){$("e").textContent="No se pudo guardar. Revisá que tengas permiso para editar esta lista."}
+  var $=function(i){return document.getElementById(i)};
+  function load(){try{var r=localStorage.getItem(KEY);items=r?JSON.parse(r):[]}catch(e){items=[]}if(!Array.isArray(items))items=[]}
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(items))}catch(e){}}
+  function when(it){var a=it.date.split("-"),t=(it.time||"23:59").split(":");return new Date(+a[0],+a[1]-1,+a[2],+t[0],+t[1])}
+  function dur(ms){var m=Math.floor(ms/6e4);if(m>=1440){var d=Math.floor(m/1440);return d+(d===1?" día":" días")}if(m>=60){var h=Math.floor(m/60);return h+(h===1?" hora":" horas")}return m+(m===1?" minuto":" minutos")}
+  function status(it){
+    var diff=when(it)-new Date();
+    if(diff<0)return{c:"c-bad",t:"Vencido hace "+dur(-diff)};
+    if(diff<=15*864e5)return{c:"c-warn",t:"Por vencer: faltan "+dur(diff)};
+    return{c:"c-ok",t:"Vigente"};
+  }
+  function fmt(it){var a=it.date.split("-");return a[2]+"/"+a[1]+"/"+a[0]+" "+(it.time||"23:59")}
+  function opts(id,n){var s=$(id);for(var i=0;i<n;i++){var o=document.createElement("option");o.value=o.textContent=(i<10?"0":"")+i;s.appendChild(o)}}
+  function render(){
+    var q=norm($("q").value.trim());
+    var sorted=items.filter(function(it){return !q||norm(it.product).indexOf(q)>-1});
+    sorted.sort(function(a,b){var c=a.product.localeCompare(b.product,"es",{sensitivity:"base",numeric:true});return c||when(a)-when(b)});
+    if(filter==="bad")sorted.sort(function(a,b){return when(a)-when(b)});
+    if(sortBy==="firma")sorted.sort(function(a,b){var c=a.by.localeCompare(b.by,"es",{sensitivity:"base",numeric:true});return c||a.product.localeCompare(b.product,"es",{sensitivity:"base",numeric:true})});
+    $("sf").textContent=sortBy?"Firma ▲":"Firma";$("sf").setAttribute("aria-pressed",sortBy?"true":"false");$("sf").className="th"+(sortBy?" on":"");
+    var cnt={bad:0,warn:0,ok:0},shown=0,tb=$("t");
+    tb.textContent="";
+    var dl=$("pl"),seen={};dl.textContent="";
+    items.forEach(function(it){var k=it.product.toLowerCase();if(!seen[k]){seen[k]=1;var o=document.createElement("option");o.value=it.product;dl.appendChild(o)}});
+    if(!items.length){
+      var tr=document.createElement("tr"),td=document.createElement("td");
+      td.colSpan=6;td.className="empty";td.textContent="Todavía no cargaste productos. Completá el formulario de arriba para empezar.";
+      tr.appendChild(td);tb.appendChild(tr);
+    }
+    sorted.forEach(function(it){
+      var st=status(it),key=st.c.replace("c-","");cnt[key]++;if(filter&&filter!==key)return;shown++;
+      var tr=document.createElement("tr");
+      [it.product,it.lot||"—"].forEach(function(v){var td=document.createElement("td");td.textContent=v;tr.appendChild(td)});
+      var tds=document.createElement("td"),sp=document.createElement("span");
+      sp.className="st "+st.c;sp.textContent=st.t;tds.appendChild(sp);tr.appendChild(tds);
+      var tdv=document.createElement("td");tdv.textContent=fmt(it);tr.appendChild(tdv);
+      var tdn=document.createElement("td");tdn.textContent=it.by;tr.appendChild(tdn);
+      var tdb=document.createElement("td"),b=document.createElement("button");
+      b.className="del";b.type="button";b.textContent="Eliminar";b.setAttribute("aria-label","Eliminar "+it.product);
+      var eb=document.createElement("button");eb.className="del";eb.type="button";eb.textContent="Editar";eb.setAttribute("aria-label","Editar "+it.product);eb.onclick=function(){openEdit(it)};
+      b.onclick=function(){askDelete(it)};
+      var ac=document.createElement("div");ac.className="acts";ac.appendChild(eb);ac.appendChild(b);tdb.appendChild(ac);tr.appendChild(tdb);tb.appendChild(tr);
+    });
+    if(items.length&&!shown){var tr2=document.createElement("tr"),td2=document.createElement("td");td2.colSpan=6;td2.className="empty";td2.textContent=q?"No se encontraron productos con esa búsqueda"+(filter?" en esta categoría":"")+".":"No hay productos en esta categoría.";tr2.appendChild(td2);tb.appendChild(tr2)}
+    $("s").innerHTML="";
+    [["bad","vencidos"],["warn","por vencer"],["ok","vigentes"]].forEach(function(k){
+      var c=document.createElement("button");c.type="button";c.className="chip c-"+k[0]+(filter===k[0]?" on":"");c.setAttribute("aria-pressed",filter===k[0]?"true":"false");c.textContent=cnt[k[0]]+" "+k[1];c.onclick=function(){filter=filter===k[0]?"":k[0];if(k[0]==="bad")sortBy="";render()};$("s").appendChild(c);
+    });
+    if(filter){var all=document.createElement("button");all.type="button";all.className="chip all";all.textContent="Ver todos";all.onclick=function(){filter="";render()};$("s").appendChild(all)}
+  }
+  $("f").addEventListener("submit",function(ev){
+    ev.preventDefault();
+    var p=$("p").value.trim(),l=$("l").value.trim(),d=$("d").value,tm=$("h").value+":"+$("m").value,n=$("n").value.trim();
+    if(!p||!l||!d||!n){$("e").textContent="Completá todos los campos: producto, lote, fecha, hora y firma.";return}
+    if(n.split(/\s+/).length<2){$("e").textContent="En Firma escribí nombre y apellido.";return}
+    if(dupOf(p,l,d,tm)){$("e").textContent="Ya existe un producto con los mismos datos (producto, lote, fecha y hora). Cambiá al menos un dato para poder agregarlo.";return}
+    $("e").textContent="";
+    if(col){col.add({product:p,lot:l,date:d,time:tm,by:n,ts:Date.now()}).catch(fail)}
+    else{items.push({id:Date.now()+Math.random(),product:p,lot:l,date:d,time:tm,by:n});save();render()}
+    $("l").value="";
+    $("p").value="";$("d").value="";$("p").focus();
+  });
+  opts("h",24);opts("m",60);opts("eh",24);opts("em",60);
+  var editing=null;
+  function norm(s){return String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")}
+  function k(s){return String(s||"").trim().replace(/\s+/g," ").toLowerCase()}
+  function dupOf(p,l,d,tm,skipId){return items.some(function(x){return x.id!==skipId&&k(x.product)===k(p)&&k(x.lot)===k(l)&&x.date===d&&(x.time||"23:59")===tm})}
+  $("q").addEventListener("input",render);
+  $("sf").onclick=function(){sortBy=sortBy?"":"firma";render()};
+  function openEdit(it){
+    editing=it;
+    $("ep").value=it.product;$("el").value=it.lot||"";$("ed").value=it.date;
+    var t=(it.time||"23:59").split(":");$("eh").value=t[0];$("em").value=t[1];
+    $("en").value=it.by;$("ee").textContent="";
+    var dg=$("dlg");if(dg.showModal)dg.showModal();else dg.setAttribute("open","");
+  }
+  function closeEdit(){var dg=$("dlg");if(dg.close)dg.close();else dg.removeAttribute("open");editing=null}
+  $("ec").onclick=closeEdit;
+  var delIt=null;
+  function askDelete(it){delIt=it;$("cn").textContent=it.product;$("cl").textContent=it.lot||"sin lote";var dg=$("cdlg");if(dg.showModal)dg.showModal();else dg.setAttribute("open","")}
+  function closeDel(){var dg=$("cdlg");if(dg.close)dg.close();else dg.removeAttribute("open");delIt=null}
+  $("cc").onclick=closeDel;
+  $("cx").onclick=function(){var it=delIt;if(!it)return;closeDel();if(col){col.doc(String(it.id)).delete().catch(fail)}else{items=items.filter(function(x){return x.id!==it.id});save();render()}};
+  $("es").onclick=function(){
+    if(!editing)return;
+    var p=$("ep").value.trim(),l=$("el").value.trim(),d=$("ed").value,tm=$("eh").value+":"+$("em").value,n=$("en").value.trim(),id=editing.id;
+    if(!p||!l||!d||!n){$("ee").textContent="Completá todos los campos: producto, lote, fecha, hora y firma.";return}
+    if(n.split(/\s+/).length<2){$("ee").textContent="En Firma escribí nombre y apellido.";return}
+    var rec={product:p,lot:l,date:d,time:tm,by:n};
+    if(dupOf(p,l,d,tm,id)){$("ee").textContent="Ya existe otro producto con los mismos datos (producto, lote, fecha y hora). Cambiá al menos un dato.";return}
+    if(col){col.doc(String(id)).update(rec).then(closeEdit).catch(function(){$("ee").textContent="No se pudo guardar. Revisá que tengas permiso para editar esta lista."})}
+    else{items=items.map(function(x){return x.id===id?{id:id,product:p,lot:l,date:d,time:tm,by:n}:x});save();render();closeEdit()}
+  };
+  render();
+  setInterval(render,60000);
+
+  var firebaseConfig={
+    apiKey:"AIzaSyBf745VHRuuHPKw0H3RmCLQVEMuOB5FM5s",
+    authDomain:"vencimientos-a9a9f.firebaseapp.com",
+    projectId:"vencimientos-a9a9f",
+    storageBucket:"vencimientos-a9a9f.firebasestorage.app",
+    messagingSenderId:"585223095448",
+    appId:"1:585223095448:web:608470fd3f9495eee83ced"
+  };
+  var auth=null,fs=null,unsub=null;
+  try{firebase.initializeApp(firebaseConfig);auth=firebase.auth();fs=firebase.firestore()}catch(e){$("ae").textContent="No se pudo conectar con la base de datos. Recargá la página."}
+
+  function showAuth(msg){$("app").hidden=true;$("auth").hidden=false;$("ae").textContent=msg||""}
+  $("gin").onclick=function(){
+    if(!auth)return;
+    $("ae").textContent="";
+    var pr=new firebase.auth.GoogleAuthProvider();pr.setCustomParameters({prompt:"select_account"});
+    auth.signInWithPopup(pr).catch(function(e){
+      var c=e&&e.code?e.code:"";
+      if(c==="auth/operation-not-supported-in-this-environment"||location.protocol==="file:"){
+        $("ae").textContent="Así no se puede iniciar sesión. Abrí la dirección de la página (https://…github.io/…) escribiéndola en Chrome, Edge, Firefox o Safari. No funciona abriendo el archivo descargado ni desde dentro de otra app.";
+      }else if(c==="auth/unauthorized-domain"){
+        $("ae").textContent="Este dominio no está autorizado en Firebase. Agregalo en Authentication > Configuración > Dominios autorizados.";
+      }else if(c==="auth/popup-blocked"){
+        $("ae").textContent="El navegador bloqueó la ventana emergente. Permitila para este sitio e intentá de nuevo.";
+      }else if(c!=="auth/popup-closed-by-user"&&c!=="auth/cancelled-popup-request"){
+        $("ae").textContent="No se pudo iniciar sesión"+(c?" ("+c+")":"")+". Intentá de nuevo.";
+      }
+    });
+  };
+  $("gout").onclick=function(){if(auth)auth.signOut()};
+
+  if(auth)auth.onAuthStateChanged(function(u){
+    if(unsub){unsub();unsub=null}
+    col=null;items=[];render();
+    if(!u){$("ub").hidden=true;showAuth("");return}
+    $("ub").hidden=false;$("who").textContent="Sesión iniciada: "+(u.email||"");
+    $("auth").hidden=true;$("app").hidden=false;
+    col=fs.collection("items");
+    unsub=col.onSnapshot(function(snap){
+      items=snap.docs.map(function(x){var v=x.data()||{};return{id:x.id,product:String(v.product||""),date:String(v.date||""),time:/^\d{2}:\d{2}$/.test(v.time||"")?v.time:"23:59",lot:String(v.lot||""),by:String(v.by||"")}}).filter(function(x){return /^\d{4}-\d{2}-\d{2}$/.test(x.date)});
+      render();
+    },function(){
+      col=null;items=[];render();
+      showAuth("La cuenta "+(u.email||"")+" no tiene permiso para usar esta lista. Pedile acceso a quien administra la herramienta o iniciá sesión con otra cuenta.");
+    });
+  });
+})();
+</script>
+</body>
+</html>
